@@ -1,0 +1,262 @@
+// SPDX-License-Identifier: GPL-3.0
+
+pragma solidity >=0.8.2 <0.8.20;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+
+contract Token is ERC20 {
+    constructor(address tokenVault) ERC20("Professional", "PROFI"){
+        _mint(tokenVault, 1000000*10**decimals());
+    }
+
+    function decimals() public view virtual override returns (uint8) {
+        return 6;
+    }
+}
+
+contract Nft is ERC1155{
+    constructor() ERC1155("http://localhost:5000/"){}
+
+    uint _uniqueId = 1;
+
+    function mintSingle(address to) public returns(uint){
+        uint id = _uniqueId;
+        _mint(to, id, 1, "");
+        _uniqueId++;
+
+        return id;
+    }
+
+    function increaseId() public{
+        _uniqueId++;
+    }
+
+    function decreaseId() public{
+        _uniqueId--;
+    }
+
+    function uniqueId() public view returns(uint){
+        return _uniqueId;
+    }
+}
+
+contract Proffessional {
+    // metamask dev pass - professionaL31+_
+    
+    Token public TOKEN;
+    Nft public NFT;
+
+    // структура пользователя
+    struct User{
+        string login; // логин
+        uint role; // роль: 0 - не зарегистрирован, 1 - user, 2 - owner
+        uint discount; // скидка на коллекции, при появлении реферала (мин: 0%, макс: 3%)
+        bytes  refCode; // реферальный код пользователя 
+        bool refCodeUsed; // использован ли реферальный код.
+    }
+
+    // структура нфт
+    struct nft{
+        uint idNFT; // уникальный айди нфт, который создается при минте
+        address owner; //
+        int collectionId; // айди коллекции. если нфт без коллекции = -1, иначе = номер коллекции
+        uint price; // цена на нфт в токенах PROFI
+        bool onSale; // нахожится ли данное нфт в продаже
+    }
+
+    // структура коллекции нфт
+    struct nftCollection{
+        uint[] nfts; // массив айди всех нфт, входящих в коллекцию
+        bool isBuyed; // true - коллекция нфт только создана и находиться у владельца системы (можно выставить на аукцион только всю коллекцию), false - коллекция куплена (можно выставлять на продажу отдельные нфт из коллекции)
+        bool onSale; // находится ли данная коллекция на аукцоне
+    }
+
+    // структура аукциона
+    struct Auction{
+        uint collectionId; // айди коллекции, выставленной на аукцион
+        uint startPrice; // начальная цена
+        uint maxPrice; // максимальная цена
+        uint startTime; // timestamp старта аукциона
+        uint endTime; // timestamp окончания айкциона
+        Bet[] bets; // массив ставок 
+        bool status; // true - активен, false - окончен
+    }
+
+    // структура ставки на аукционе
+    struct Bet{
+        address owner; // владелец ставки
+        uint price; // предложенная цена
+    }
+
+    address owner; //
+    address tokenVault; //
+    mapping(address => User) users; // маппинг пользователей
+    mapping(bytes => address) refCodes; //
+    nft[] public nfts; // массив всех созданных нфт
+    nftCollection[] public collections; // массив всех созданных коллекций 
+    Auction[] public auctions; //
+
+    constructor(){
+        TOKEN = new Token(tokenVault);
+        NFT = new Nft();
+
+        // owner registraition
+        registration(owner, "Owner");
+        users[owner].role = 2;
+        TOKEN.transferFrom(tokenVault, owner, 100000*10**6);
+
+        // Tom registration
+        address Tom;
+        registration(Tom, "Tom");
+        TOKEN.transferFrom(tokenVault, Tom, 100000*10**6);
+
+        // Tom registration
+        address Max;
+        registration(Max, "Max");
+        TOKEN.transferFrom(tokenVault, Max, 200000*10**6);
+
+        // Tom registration
+        address Jack;
+        registration(Jack, "Jack");
+        TOKEN.transferFrom(tokenVault, Jack, 300000*10**6);
+    }
+
+    // функция регистрации
+    function registration(address user, string memory login) public{
+        require(users[user].role == 0, "User is already registered");
+
+        // создание реферального кода. По итогу в байты переводиться строка типа: PROFI0x5B382023.
+        bytes memory refCode1 = "PROFI";
+        bytes2 refCode2 = bytes2(abi.encodePacked(user));
+        bytes memory refCode3 = "2023";
+        bytes memory refCode = bytes.concat(refCode1 , refCode2, refCode3);
+
+        users[user] = User(login, 1, 0, refCode, false);
+        refCodes[refCode] = user;
+    }
+
+    // функция минта одиночной нфт
+    function mintSingle(uint price) public{
+        uint mintedId = NFT.mintSingle(owner);
+
+        nfts.push(nft(mintedId, owner, -1, price, true));
+    }
+
+    // функция минта коллекции нфт
+        function mintCollection(uint amount) public {
+        uint[] memory ids = new uint[](amount);
+
+        for (uint i = 0; i < ids.length; i++){
+            ids[i] = NFT.mintSingle(owner);
+            // создание одиночных нфт, с указанием принадлежности к коллекции
+            nfts.push(nft(ids[i], owner, int(collections.length), 0, false));
+        }
+
+        // создание коллекции нфт
+        collections.push(nftCollection(ids, false, false));
+    }
+
+    // функция создания аукциона 
+    function createAuction(uint collectionId, uint startPrice, uint maxPrice, uint startTime, uint endTime) public {
+        require(msg.sender == owner, "Only owner can start auction");
+        require(collectionId < collections.length, "Id is out of range");
+        require(collections[collectionId].isBuyed == false, "This collection is already selled");
+        require(collections[collectionId].onSale == false, "This collection is already up for auction");
+
+
+        Auction storage newAuction = auctions.push();
+        newAuction.collectionId = collectionId;
+        newAuction.startPrice = startPrice;
+        newAuction.maxPrice = maxPrice;
+        newAuction.startTime = startTime;
+        newAuction.endTime = endTime;
+        newAuction.status = true;
+
+        collections[collectionId].onSale = true;
+    }
+
+    // функция для создания ставки на аукционе TODO:
+    function bet(uint auctionId, uint betPrice) public {
+        require(msg.sender != owner, "Owner cant do this");
+        require(auctionId < auctions.length, "Id is out of range");
+        require(auctions[auctionId].status == true, "This auction is already ended");
+        require(block.timestamp > auctions[auctionId].startTime, "This auction isnt started yet");
+        require(TOKEN.balanceOf(msg.sender) >= betPrice, "You dont have enough tokens to bet");
+        require(betPrice >= auctions[auctionId].startPrice, "Your bet need to be greater than or equeal to the starting price");
+        
+        if (block.timestamp < auctions[auctionId].endTime){ // если аукцион еще не закончился
+            if (auctions[auctionId].bets.length > 0 && betPrice <= auctions[auctionId].bets[auctions[auctionId].bets.length - 1].price){
+                require(betPrice <= auctions[auctionId].bets[auctions[auctionId].bets.length - 1].price, "Your bet need to be greater than starting price"); // ставка должна быть больше чем самая высокая на данный момент
+            }
+
+            auctions[auctionId].bets.push(Bet(msg.sender, betPrice));
+            if (betPrice >= auctions[auctionId].maxPrice){
+                // TODO: завершить аукцион, если ставка равна максимальной цене или больше
+            }
+        }
+        else{ // время аукциона закончилось
+            if (auctions[auctionId].bets.length > 0){
+                // TODO: если нет ставок за весь аукцион
+                auctions[auctionId].status = false;
+            }
+            else{
+                // TODO: выигрывает тот, у кого самая большая ставка
+            }
+            // TODO: реализовать холд средств и возврат при окончании аукциона
+            auctions[auctionId].status = false;
+        }
+    }
+
+    // TODO: 
+    // функция для преждевременного завершения аукциона владельцем
+    // function endAuction() public {}
+
+    // функция для выставления нфт на продажу
+    function sellNft(uint nftId, uint price) public {
+        require(NFT.balanceOf(msg.sender, nfts[nftId].idNFT) == 1, "You dont have this nft");
+        require(nfts[nftId].onSale == false, "This nft is already on sale");
+
+        nfts[nftId].onSale = true;
+        nfts[nftId].price = price; 
+    }
+
+    // функция для покупки нфт
+    function buyNft(uint nftId) public {
+        require(nfts[nftId].onSale == true, "This nft isnt on sale");
+        require(TOKEN.balanceOf(msg.sender) >= nfts[nftId].price, "You dont have enough money");
+        require(NFT.balanceOf(msg.sender, nfts[nftId].idNFT) == 1, "You cant buy yours nft");
+
+        NFT.safeTransferFrom(nfts[nftId].owner, msg.sender, nfts[nftId].idNFT, 1, "");
+        TOKEN.transferFrom(msg.sender, nfts[nftId].owner, nfts[nftId].price);
+        nfts[nftId].owner =  msg.sender;
+        nfts[nftId].onSale = false;
+    }
+
+    // безвозмездно отправить нфт другому пользователю
+    function sendNft(uint nftId, address to) public{
+        require(nfts[nftId].onSale == false, "This nft is on sale");
+        require(NFT.balanceOf(msg.sender, nfts[nftId].idNFT) == 1, "You dont have this nft");
+
+        NFT.safeTransferFrom(msg.sender, to, nfts[nftId].idNFT, 1, "");
+    }
+
+    // функция для ввода реферального кода
+    function applyReferalCode(bytes memory refCode) public {
+        require(users[msg.sender].role != 0, "You are not registered");
+        require(users[msg.sender].refCodeUsed == false, "You already applied referal code");
+        require(refCodes[refCode] != address(0), "Incorrect referral code");
+        require(refCodes[refCode] != msg.sender, "you cant apply your own referal code");
+
+        if (users[refCodes[refCode]].discount <= 2){
+            users[refCodes[refCode]].discount += 1;
+        }
+        
+        users[msg.sender].refCodeUsed = true;
+        TOKEN.transferFrom(tokenVault, msg.sender, 100*10**6);
+    }
+
+    function getUser(address user) public view returns(User memory){
+        return users[user];
+    }
+}
