@@ -5,42 +5,6 @@ pragma solidity >=0.8.2 <0.8.20;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 
-contract Token is ERC20 {
-    constructor(address tokenVault) ERC20("Professional", "PROFI"){
-        _mint(tokenVault, 1000000*10**decimals());
-    }
-
-    function decimals() public view virtual override returns (uint8) {
-        return 6;
-    }
-}
-
-contract Nft is ERC1155{
-    constructor() ERC1155("http://localhost:5000/"){}
-
-    uint _uniqueId = 1;
-
-    function mintSingle(address to) public returns(uint){
-        uint id = _uniqueId;
-        _mint(to, id, 1, "");
-        _uniqueId++;
-
-        return id;
-    }
-
-    function increaseId() public{
-        _uniqueId++;
-    }
-
-    function decreaseId() public{
-        _uniqueId--;
-    }
-
-    function uniqueId() public view returns(uint){
-        return _uniqueId;
-    }
-}
-
 contract Proffessional {
     // metamask dev pass - professionaL31+_
     
@@ -89,8 +53,8 @@ contract Proffessional {
         uint price; // предложенная цена
     }
 
-    address owner; //
-    address tokenVault; //
+    address owner = 0x87D80BF68b484dFA3abb161E4512067f805C7987; //
+    address tokenVault = 0x0780D0D19712218c16BAaaf679DaF2CFFD07a670; //
     mapping(address => User) users; // маппинг пользователей
     mapping(bytes => address) refCodes; //
     nft[] public nfts; // массив всех созданных нфт
@@ -104,22 +68,22 @@ contract Proffessional {
         // owner registraition
         registration(owner, "Owner");
         users[owner].role = 2;
-        TOKEN.transferFrom(tokenVault, owner, 100000*10**6);
+        TOKEN.transferTo(tokenVault, owner, 100000*10**6);
 
         // Tom registration
-        address Tom;
+        address Tom = 0xcCde46C9eC797CC3Fa7471b061585946b743aC1A;
         registration(Tom, "Tom");
-        TOKEN.transferFrom(tokenVault, Tom, 100000*10**6);
+        TOKEN.transferTo(tokenVault, Tom, 100000*10**6);
 
         // Tom registration
-        address Max;
+        address Max = 0x16e1d264199916fEe551b5EC3C9C2925e94CEeDF;
         registration(Max, "Max");
-        TOKEN.transferFrom(tokenVault, Max, 200000*10**6);
+        TOKEN.transferTo(tokenVault, Max, 200000*10**6);
 
         // Tom registration
-        address Jack;
+        address Jack = 0x66b50ee0A08575A09F62b6d3722A8329604B27DF;
         registration(Jack, "Jack");
-        TOKEN.transferFrom(tokenVault, Jack, 300000*10**6);
+        TOKEN.transferTo(tokenVault, Jack, 300000*10**6);
     }
 
     // функция регистрации
@@ -258,5 +222,51 @@ contract Proffessional {
 
     function getUser(address user) public view returns(User memory){
         return users[user];
+    }
+
+    function getBalance() public view returns(uint) {
+        return TOKEN.balanceOf(tokenVault);
+    }
+}
+
+// token contract
+contract Token is ERC20 {
+    constructor(address tokenVault) ERC20("Professional", "PROFI"){
+        _mint(tokenVault, 1000000*10**6);
+    }
+
+    function decimals() public view virtual override returns (uint8) {
+        return 6;
+    }
+
+    function transferTo(address from, address to, uint amount) public{
+        _transfer(from, to, amount);
+    }
+}
+
+// nft contract
+contract Nft is ERC1155{
+    constructor() ERC1155("http://localhost:5000/"){}
+
+    uint _uniqueId = 1;
+
+    function mintSingle(address to) public returns(uint){
+        uint id = _uniqueId;
+        _mint(to, id, 1, "");
+        _uniqueId++;
+
+        return id;
+    }
+
+    function increaseId() public{
+        _uniqueId++;
+    }
+
+    function decreaseId() public{
+        _uniqueId--;
+    }
+
+    function uniqueId() public view returns(uint){
+        return _uniqueId;
     }
 }
