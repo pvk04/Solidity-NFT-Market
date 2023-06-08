@@ -91,8 +91,8 @@ contract Proffessional {
         require(users[user].role == 0, "User is already registered");
 
         // создание реферального кода. По итогу в байты переводиться строка типа: PROFI0x5B382023.
-        bytes memory refCode1 = "PROFI";
-        bytes2 refCode2 = bytes2(abi.encodePacked(user));
+        bytes memory refCode1 = "PROFI-";
+        bytes2 refCode2 = bytes2(abi.encodePacked(user)); // не переводит в байты
         bytes memory refCode3 = "2023";
         bytes memory refCode = bytes.concat(refCode1 , refCode2, refCode3);
 
@@ -192,7 +192,7 @@ contract Proffessional {
         require(NFT.balanceOf(msg.sender, nfts[nftId].idNFT) == 1, "You cant buy yours nft");
 
         NFT.safeTransferFrom(nfts[nftId].owner, msg.sender, nfts[nftId].idNFT, 1, "");
-        TOKEN.transferFrom(msg.sender, nfts[nftId].owner, nfts[nftId].price);
+        TOKEN.transferTo(msg.sender, nfts[nftId].owner, nfts[nftId].price);
         nfts[nftId].owner =  msg.sender;
         nfts[nftId].onSale = false;
     }
@@ -217,15 +217,15 @@ contract Proffessional {
         }
         
         users[msg.sender].refCodeUsed = true;
-        TOKEN.transferFrom(tokenVault, msg.sender, 100*10**6);
+        TOKEN.transferTo(tokenVault, msg.sender, 100*10**6);
     }
 
     function getUser(address user) public view returns(User memory){
         return users[user];
     }
 
-    function getBalance() public view returns(uint) {
-        return TOKEN.balanceOf(tokenVault);
+    function getBalance(address user) public view returns(uint) {
+        return TOKEN.balanceOf(user);
     }
 }
 
