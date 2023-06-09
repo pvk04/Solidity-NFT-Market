@@ -227,6 +227,30 @@ contract Proffessional {
     function getBalance(address user) public view returns(uint) {
         return TOKEN.balanceOf(user);
     }
+
+    function getNfts() public view returns(nft[] memory){
+        return nfts;
+    }
+
+    function getNft(uint nftId) public view returns(nft memory){
+        return nfts[nftId];
+    }
+
+    function getCollections() public view returns(nftCollection[] memory){
+        return collections;
+    }
+
+    function getCollection(uint collectionId) public view returns(nftCollection memory){
+        return collections[collectionId];
+    }
+
+    function getAuctions() public view returns(Auction[] memory){
+        return auctions;
+    }
+
+    function getAuction(uint auctionId) public view returns(Auction memory){
+        return auctions[auctionId];
+    }
 }
 
 // token contract
