@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect } from "react";
 import Card from "react-bootstrap/Card";
 import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
@@ -22,18 +22,16 @@ export default function LoginPage() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    console.log(address);
     const userConnected = await contract.methods
       .getUser(address)
       .call({ from: address });
 
-    console.log(userConnected);
     dispatch({ type: "SET_LOGIN", payload: userConnected });
     navigate("/");
   }
 
   return (
-    <Card style={{ display: "flex", width: "30%", margin: "auto" }}>
+    <Card style={{ display: "flex", margin: "auto" }}>
       <Card.Header>
         <Card.Text>Авторизация</Card.Text>
       </Card.Header>

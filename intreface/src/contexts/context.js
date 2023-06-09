@@ -18,7 +18,6 @@ function reducer(state, { type, payload }) {
       return { ...state, address: payload };
     case "SET_LOGIN":
       const { login, role, discount, refCodeUsed } = payload;
-      console.log("context: ", { login, role, discount, refCodeUsed });
       return { ...state, login, role, discount, refCodeUsed };
     case "SET_LOGOUT":
       return { ...initialState };
