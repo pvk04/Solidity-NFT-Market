@@ -58,7 +58,7 @@ contract Proffessional {
     mapping(address => User) users; // маппинг пользователей
     mapping(bytes => address) refCodes; //
     nft[] public nfts; // массив всех созданных нфт
-    nftCollection[] public collections; // массив всех созданных коллекций 
+    nftCollection[] public collections; // массив всех созданных коллекций
     Auction[] public auctions; //
 
     constructor(){
@@ -112,9 +112,10 @@ contract Proffessional {
         uint[] memory ids = new uint[](amount);
 
         for (uint i = 0; i < ids.length; i++){
-            ids[i] = NFT.mintSingle(owner);
+            ids[i] = collections.length;
+            uint id = NFT.mintSingle(owner);
             // создание одиночных нфт, с указанием принадлежности к коллекции
-            nfts.push(nft(ids[i], owner, int(collections.length), 0, false));
+            nfts.push(nft(id, owner, int(collections.length), 0, false));
         }
 
         // создание коллекции нфт
@@ -140,7 +141,7 @@ contract Proffessional {
         collections[collectionId].onSale = true;
     }
 
-    // функция для создания ставки на аукционе TODO:
+    // функция для создания ставки на аукционе
     function bet(uint auctionId, uint betPrice) public {
         require(msg.sender != owner, "Owner cant do this");
         require(auctionId < auctions.length, "Id is out of range");
@@ -150,31 +151,100 @@ contract Proffessional {
         require(betPrice >= auctions[auctionId].startPrice, "Your bet need to be greater than or equeal to the starting price");
         
         if (block.timestamp < auctions[auctionId].endTime){ // если аукцион еще не закончился
-            if (auctions[auctionId].bets.length > 0 && betPrice <= auctions[auctionId].bets[auctions[auctionId].bets.length - 1].price){
-                require(betPrice <= auctions[auctionId].bets[auctions[auctionId].bets.length - 1].price, "Your bet need to be greater than starting price"); // ставка должна быть больше чем самая высокая на данный момент
+            bool isBet = false;
+            for (uint i = 0; i < auctions[auctionId].bets.length; i ++){ // проверка, что пользователь еще не совершал ставок
+                if (auctions[auctionId].bets[i].owner == msg.sender){
+                    isBet = true;
+                    break;
+                }
+            }
+            if(isBet){
+                require(isBet == false, "You alreaedy have bet. You can decrease it only");
             }
 
             auctions[auctionId].bets.push(Bet(msg.sender, betPrice));
-            if (betPrice >= auctions[auctionId].maxPrice){
-                // TODO: завершить аукцион, если ставка равна максимальной цене или больше
+            TOKEN.transferTo(msg.sender, tokenVault, betPrice);
+
+            if (betPrice >= auctions[auctionId].maxPrice){ // завершить аукцион, если ставка равна максимальной цене или больше
+                _endAuction(auctionId);
             }
         }
         else{ // время аукциона закончилось
-            if (auctions[auctionId].bets.length > 0){
-                // TODO: если нет ставок за весь аукцион
+            if (auctions[auctionId].bets.length > 0){ // если нет ставок за весь аукцион
+                collections[auctions[auctionId].collectionId].onSale = false;
                 auctions[auctionId].status = false;
             }
             else{
-                // TODO: выигрывает тот, у кого самая большая ставка
+                // выигрывает тот, у кого самая большая ставка
+                _endAuction(auctionId);
             }
-            // TODO: реализовать холд средств и возврат при окончании аукциона
-            auctions[auctionId].status = false;
         }
     }
 
-    // TODO: 
-    // функция для преждевременного завершения аукциона владельцем
-    // function endAuction() public {}
+    // функция увеличения ставки на аукционе
+    function increateBet(uint auctionId, uint increaseValue) public {
+        require(msg.sender != owner, "Owner cant do this");
+        require(auctionId < auctions.length, "Id is out of range");
+        require(auctions[auctionId].status == true, "This auction is already ended");
+        require(block.timestamp > auctions[auctionId].startTime, "This auction isnt started yet");
+        require(TOKEN.balanceOf(msg.sender) >= increaseValue, "You dont have enough tokens to bet");
+
+        if (block.timestamp > auctions[auctionId].endTime){
+            _endAuction(auctionId);
+            return;
+        }
+
+        int betId = -1;
+        for (uint i = 0; i < auctions[auctionId].bets.length; i ++){
+            if (auctions[auctionId].bets[i].owner == msg.sender){
+                betId = int(i);
+                break;
+            }
+        }
+
+        if (betId == -1){
+            require(betId != -1, "You need to create bet firstly");
+        }
+
+        auctions[auctionId].bets[uint(betId)].price += increaseValue;
+        TOKEN.transferTo(msg.sender, tokenVault, increaseValue);
+
+        if (auctions[auctionId].bets[uint(betId)].price >= auctions[auctionId].maxPrice){ // завершить аукцион, если ставка равна максимальной цене или больше
+            _endAuction(auctionId);
+        }
+    }
+
+    // функция завершения аукциона владельцем
+    function endAuction(uint auctionId) public {
+        require(msg.sender == owner, "Only owner can do this");
+        _endAuction(auctionId);
+    }
+
+    // функция для преждевременного завершения аукциона
+    function _endAuction(uint auctionId) private {
+        require(auctionId < auctions.length, "Id is out of range");
+        require(auctions[auctionId].status == true, "This auction is already ended");
+        require(block.timestamp > auctions[auctionId].startTime, "This auction isnt started yet");
+
+        Bet memory winnerBet = auctions[auctionId].bets[0];
+        for (uint i = 0; i < auctions[auctionId].bets.length; i ++){
+            if (auctions[auctionId].bets[i].price > winnerBet.price){
+                winnerBet = auctions[auctionId].bets[i];
+            }
+            else{
+                TOKEN.transferTo(tokenVault, auctions[auctionId].bets[i].owner, auctions[auctionId].bets[i].price);
+            }
+        }
+
+        for (uint i = 0; i < collections[auctions[auctionId].collectionId].nfts.length; i ++){
+            uint nftId = nfts[collections[auctions[auctionId].collectionId].nfts[i]].idNFT;
+            NFT.transferNftTo(owner, winnerBet.owner, nftId);
+            nfts[collections[auctions[auctionId].collectionId].nfts[i]].owner = winnerBet.owner;
+        }
+
+        collections[auctions[auctionId].collectionId].onSale = false;
+        auctions[auctionId].status = false;
+    }
 
     // функция для выставления нфт на продажу
     function sellNft(uint nftId, uint price) public {
@@ -189,9 +259,9 @@ contract Proffessional {
     function buyNft(uint nftId) public {
         require(nfts[nftId].onSale == true, "This nft isnt on sale");
         require(TOKEN.balanceOf(msg.sender) >= nfts[nftId].price, "You dont have enough money");
-        require(NFT.balanceOf(msg.sender, nfts[nftId].idNFT) == 1, "You cant buy yours nft");
+        require(NFT.balanceOf(msg.sender, nfts[nftId].idNFT) == 0, "You cant buy yours nft");
 
-        NFT.safeTransferFrom(nfts[nftId].owner, msg.sender, nfts[nftId].idNFT, 1, "");
+        NFT.transferNftTo(nfts[nftId].owner, msg.sender, nfts[nftId].idNFT);
         TOKEN.transferTo(msg.sender, nfts[nftId].owner, nfts[nftId].price);
         nfts[nftId].owner =  msg.sender;
         nfts[nftId].onSale = false;
@@ -202,7 +272,7 @@ contract Proffessional {
         require(nfts[nftId].onSale == false, "This nft is on sale");
         require(NFT.balanceOf(msg.sender, nfts[nftId].idNFT) == 1, "You dont have this nft");
 
-        NFT.safeTransferFrom(msg.sender, to, nfts[nftId].idNFT, 1, "");
+        NFT.transferNftTo(msg.sender, to, nfts[nftId].idNFT);
     }
 
     // функция для ввода реферального кода
@@ -280,6 +350,10 @@ contract Nft is ERC1155{
         _uniqueId++;
 
         return id;
+    }
+
+    function transferNftTo(address from, address to, uint id) public {
+        _safeTransferFrom(from, to, id, 1, "");
     }
 
     function increaseId() public{
